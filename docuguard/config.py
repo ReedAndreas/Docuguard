@@ -41,7 +41,7 @@ PII_TYPE_MAPPING = {
 }
 
 # Set the active PII types based on mode (default to real-world)
-USE_BENCHMARK_LABELS = False  # Default to real-world labels
+USE_BENCHMARK_LABELS = True  # Default to real-world labels
 PII_LABELS_TO_DETECT = BENCHMARK_PII_TYPES if USE_BENCHMARK_LABELS else REAL_WORLD_PII_TYPES
 
 def map_pii_type(pii_type, to_benchmark=False):
