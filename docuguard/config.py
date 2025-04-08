@@ -83,7 +83,6 @@ BASE_SCORES = {
     "NAME": 0.3,
     "DATE_OF_BIRTH": 0.5,
     "IP_ADDRESS": 0.4,
-    "URL": 0.4,
     
     "DEFAULT": 0.1
 }

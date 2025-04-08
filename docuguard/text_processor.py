@@ -6,6 +6,9 @@ import uuid
 import nltk
 from typing import List, Dict, Tuple, Any
 
+# Import PyMuPDF for PDF processing
+import fitz
+
 # Download required NLTK resources if not already present
 try:
     nltk.data.find('tokenizers/punkt')
@@ -145,4 +148,32 @@ def process_text_file(file_path: str) -> Dict[str, Any]:
         return prepare_document_from_text(text, doc_id)
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
-        return None 
+        return None
+    
+def process_pdf_file(file_path: str) -> Dict[str, Any]:
+        """
+        Extracts text from a PDF file and prepares it for processing.
+    
+        Args:
+            file_path (str): Path to the PDF file
+    
+        Returns:
+            dict: Document dictionary with fields needed for processing
+        """
+        try:
+            # Open the PDF
+            doc = fitz.open(file_path)
+            text = ""
+            for page in doc:
+                text += page.get_text()
+                text += "\n"
+            doc.close()
+    
+            # Use the filename as document ID
+            import os
+            doc_id = os.path.basename(file_path)
+    
+            return prepare_document_from_text(text, doc_id)
+        except Exception as e:
+            print(f"Error reading PDF file {file_path}: {e}")
+            return None

@@ -1,5 +1,26 @@
 """
-Entry point for processing real-world text files without ground truth labels.
+DocuGuard Real-World PII Detection
+
+This script processes real-world documents (text or PDF) to detect PII entities and calculate risk scores.
+It supports both plain text files (.txt) and PDF files (.pdf), automatically detecting the file type.
+
+PDF support is powered by PyMuPDF (fitz), which extracts text content from PDF pages before processing.
+
+Usage:
+    python -m docuguard.real_world --file path/to/sample.txt
+    python -m docuguard.real_world --file path/to/sample.pdf
+    python -m docuguard.real_world --text "Paste your text here"
+
+Options:
+    --file       Path to a .txt or .pdf file to process
+    --text       Directly provide text input instead of a file
+    --benchmark  Use benchmark-specific PII labels
+    --anonymize  Anonymize detected PII in the output
+
+Example:
+    python -m docuguard.real_world --file test_samples/sample.pdf --anonymize
+
+The script will extract text, tokenize, detect PII using an LLM, calculate risk scores, and optionally anonymize the output.
 """
 import sys
 import os
@@ -39,6 +60,38 @@ def process_single_text_file(file_path, use_benchmark_labels=False):
         use_benchmark_labels=use_benchmark_labels
     )
     
+    return document, scored_entities, pred_labels
+
+def process_single_pdf_file(file_path, use_benchmark_labels=False):
+    """
+    Process a single PDF file and detect PII with risk scoring.
+
+    Args:
+        file_path (str): Path to the PDF file
+        use_benchmark_labels (bool): Whether to use benchmark-specific labels
+
+    Returns:
+        tuple: (document_data, scored_entities, predicted_bio_labels)
+    """
+    from docuguard.text_processor import process_pdf_file
+
+    # Process the PDF file into document format
+    document = process_pdf_file(file_path)
+    if not document:
+        print(f"Failed to process PDF file: {file_path}")
+        return None, [], []
+
+    # Convert data types to expected string format
+    tokens_str = str(document['tokens'])
+    trailing_ws_str = str(document['trailing_whitespace'])
+
+    # Process with the scoring function (we pass None for labels as this is real-world data)
+    scored_entities, pred_labels, _ = process_document_with_scoring(
+        document['text'], tokens_str, trailing_ws_str,
+        ground_truth_labels_str=None,
+        use_benchmark_labels=use_benchmark_labels
+    )
+
     return document, scored_entities, pred_labels
 
 def process_text_input(text, use_benchmark_labels=False):
@@ -176,6 +229,44 @@ def main():
     parser.add_argument('--text', type=str, help='Text to process directly')
     parser.add_argument('--benchmark', action='store_true', help='Use benchmark labels')
     parser.add_argument('--anonymize', action='store_true', help='Anonymize detected PII')
+
+    args = parser.parse_args()
+
+    if args.text:
+        # Process direct text input
+        document, scored_entities, pred_labels = None, [], []
+        document_data = {
+            'text': args.text,
+            'document': 'input_text'
+        }
+        document_data.update(prepare_document_from_text(args.text))
+        tokens_str = str(document_data['tokens'])
+        trailing_ws_str = str(document_data['trailing_whitespace'])
+        scored_entities, pred_labels, _ = process_document_with_scoring(
+            document_data['text'], tokens_str, trailing_ws_str,
+            ground_truth_labels_str=None,
+            use_benchmark_labels=args.benchmark
+        )
+        document = document_data
+    elif args.file:
+        import os
+        ext = os.path.splitext(args.file)[1].lower()
+        if ext == '.pdf':
+            document, scored_entities, pred_labels = process_single_pdf_file(args.file, use_benchmark_labels=args.benchmark)
+        else:
+            document, scored_entities, pred_labels = process_single_text_file(args.file, use_benchmark_labels=args.benchmark)
+    else:
+        print("Please provide either --file or --text input.")
+        return
+
+    # Display results
+    display_results(document, scored_entities)
+
+    # Optionally anonymize
+    if args.anonymize:
+        privacy_threshold = 0.5  # Default threshold
+        mode = 'redact'  # Default mode
+        anonymize_and_display(document, scored_entities, privacy_threshold, mode)
     parser.add_argument('--mode', type=str, choices=[REDACTION_MODE, PSEUDONYMIZATION_MODE], 
                         default=REDACTION_MODE, help='Anonymization mode')
     parser.add_argument('--threshold', type=float, default=0.3, 
@@ -193,8 +284,13 @@ def main():
     
     # Process file or direct text input
     if args.file:
+        import os
+        ext = os.path.splitext(args.file)[1].lower()
         print(f"Processing file: {args.file}")
-        document, scored_entities, pred_labels = process_single_text_file(args.file, use_benchmark_labels)
+        if ext == '.pdf':
+            document, scored_entities, pred_labels = process_single_pdf_file(args.file, use_benchmark_labels)
+        else:
+            document, scored_entities, pred_labels = process_single_text_file(args.file, use_benchmark_labels)
         if document:
             display_results(document, scored_entities)
             if args.anonymize:
