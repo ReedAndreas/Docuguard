@@ -16,9 +16,13 @@ Options:
     --text       Directly provide text input instead of a file
     --benchmark  Use benchmark-specific PII labels
     --anonymize  Anonymize detected PII in the output
+    --pdf-redact Redact the original PDF file instead of just the extracted text
+    --threshold  Risk score threshold for anonymization (default: 0.3)
+    --output     Path to save the redacted PDF (if using --pdf-redact)
 
 Example:
     python -m docuguard.real_world --file test_samples/sample.pdf --anonymize
+    python -m docuguard.real_world --file test_samples/sample.pdf --pdf-redact --threshold 0.4
 
 The script will extract text, tokenize, detect PII using an LLM, calculate risk scores, and optionally anonymize the output.
 """
@@ -28,7 +32,7 @@ import argparse
 import pandas as pd
 from docuguard.text_processor import process_text_file, prepare_document_from_text
 from docuguard.document_processor import process_document_with_scoring
-from docuguard.anonymization import anonymize_text, REDACTION_MODE, PSEUDONYMIZATION_MODE
+from docuguard.anonymization import anonymize_text, redact_pdf_entities, REDACTION_MODE, PSEUDONYMIZATION_MODE
 from docuguard.risk_summary import summarize_risk_profile, format_risk_summary
 from docuguard.config import USE_BENCHMARK_LABELS
 
@@ -222,55 +226,56 @@ def anonymize_and_display(document, scored_entities, privacy_threshold, mode):
         except Exception as e:
             print(f"Error saving anonymized text: {e}")
 
+def redact_pdf_and_display(file_path, scored_entities, privacy_threshold, output_path=None):
+    """
+    Apply PDF redaction for detected PII and display results.
+    
+    Args:
+        file_path (str): Path to the original PDF file
+        scored_entities (list): List of detected entities with risk scores
+        privacy_threshold (float): Risk score threshold for redaction
+        output_path (str, optional): Path to save the redacted PDF
+    """
+    if not scored_entities:
+        print("\n--- No PII to redact in PDF ---")
+        return
+    
+    print(f"\n--- Redacting PDF entities with risk score >= {privacy_threshold} ---")
+    
+    # Apply PDF redaction
+    try:
+        redacted_path, stats = redact_pdf_entities(file_path, scored_entities, privacy_threshold, output_path)
+        
+        print(f"\nPDF redaction complete: {stats['entities_redacted']} of {stats['entities_processed']} entities targeted for redaction")
+        
+        if "redacted_entities" in stats:
+            total_instances = sum(entity.get("instances_redacted", 0) for entity in stats["redacted_entities"])
+            print(f"Total instances redacted: {total_instances}")
+            
+            print("\nRedacted PII entities:")
+            for entity in stats["redacted_entities"]:
+                print(f"- {entity['label']}: '{entity['text']}' ({entity['instances_redacted']} instances)")
+        
+        print(f"\nRedacted PDF saved to: {redacted_path}")
+        
+    except Exception as e:
+        print(f"Error during PDF redaction: {e}")
+        import traceback
+        traceback.print_exc()
+
 def main():
     """Main function for running DocuGuard PII detection on real-world data."""
     parser = argparse.ArgumentParser(description='DocuGuard PII Detection for Real-World Text')
     parser.add_argument('--file', type=str, help='Path to text file to process')
     parser.add_argument('--text', type=str, help='Text to process directly')
     parser.add_argument('--benchmark', action='store_true', help='Use benchmark labels')
-    parser.add_argument('--anonymize', action='store_true', help='Anonymize detected PII')
-
-    args = parser.parse_args()
-
-    if args.text:
-        # Process direct text input
-        document, scored_entities, pred_labels = None, [], []
-        document_data = {
-            'text': args.text,
-            'document': 'input_text'
-        }
-        document_data.update(prepare_document_from_text(args.text))
-        tokens_str = str(document_data['tokens'])
-        trailing_ws_str = str(document_data['trailing_whitespace'])
-        scored_entities, pred_labels, _ = process_document_with_scoring(
-            document_data['text'], tokens_str, trailing_ws_str,
-            ground_truth_labels_str=None,
-            use_benchmark_labels=args.benchmark
-        )
-        document = document_data
-    elif args.file:
-        import os
-        ext = os.path.splitext(args.file)[1].lower()
-        if ext == '.pdf':
-            document, scored_entities, pred_labels = process_single_pdf_file(args.file, use_benchmark_labels=args.benchmark)
-        else:
-            document, scored_entities, pred_labels = process_single_text_file(args.file, use_benchmark_labels=args.benchmark)
-    else:
-        print("Please provide either --file or --text input.")
-        return
-
-    # Display results
-    display_results(document, scored_entities)
-
-    # Optionally anonymize
-    if args.anonymize:
-        privacy_threshold = 0.5  # Default threshold
-        mode = 'redact'  # Default mode
-        anonymize_and_display(document, scored_entities, privacy_threshold, mode)
+    parser.add_argument('--anonymize', action='store_true', help='Anonymize detected PII in text')
+    parser.add_argument('--pdf-redact', action='store_true', help='Apply redaction to the original PDF file')
     parser.add_argument('--mode', type=str, choices=[REDACTION_MODE, PSEUDONYMIZATION_MODE], 
-                        default=REDACTION_MODE, help='Anonymization mode')
+                        default=REDACTION_MODE, help='Text anonymization mode')
     parser.add_argument('--threshold', type=float, default=0.3, 
-                        help='Privacy threshold for anonymization (0.0-1.0)')
+                        help='Privacy threshold for anonymization/redaction (0.0-1.0)')
+    parser.add_argument('--output', type=str, help='Path to save the redacted PDF (when using --pdf-redact)')
     parser.add_argument('--no-color', action='store_true', help='Disable colored output')
     
     args = parser.parse_args()
@@ -282,19 +287,38 @@ def main():
     use_benchmark_labels = args.benchmark if args.benchmark is not None else USE_BENCHMARK_LABELS
     use_color = not args.no_color
     
+    # Check if PDF redaction was requested with text input
+    if args.pdf_redact and args.text:
+        print("Error: PDF redaction can only be used with a PDF file input, not with text input.")
+        return
+    
     # Process file or direct text input
     if args.file:
         import os
         ext = os.path.splitext(args.file)[1].lower()
         print(f"Processing file: {args.file}")
-        if ext == '.pdf':
+        
+        is_pdf = ext == '.pdf'
+        
+        # Check if PDF redaction was requested for a non-PDF file
+        if args.pdf_redact and not is_pdf:
+            print("Error: PDF redaction can only be used with PDF files.")
+            return
+        
+        if is_pdf:
             document, scored_entities, pred_labels = process_single_pdf_file(args.file, use_benchmark_labels)
         else:
             document, scored_entities, pred_labels = process_single_text_file(args.file, use_benchmark_labels)
+        
         if document:
             display_results(document, scored_entities)
-            if args.anonymize:
+            
+            # Handle anonymization/redaction
+            if args.pdf_redact and is_pdf:
+                redact_pdf_and_display(args.file, scored_entities, args.threshold, args.output)
+            elif args.anonymize:
                 anonymize_and_display(document, scored_entities, args.threshold, args.mode)
+    
     elif args.text:
         print("Processing text input...")
         document, scored_entities, pred_labels = process_text_input(args.text, use_benchmark_labels)

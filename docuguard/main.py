@@ -21,7 +21,7 @@ def main():
         return
 
     # Select a sample size for testing
-    SAMPLE_SIZE = 10  # Adjust as needed
+    SAMPLE_SIZE = 100  # Adjust as needed
     sample_df = df.head(SAMPLE_SIZE)
     
     # Toggle between benchmark and real-world labels

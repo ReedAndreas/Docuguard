@@ -3,7 +3,7 @@ Configuration settings for the DocuGuard PII detection system.
 """
 
 # OpenRouter API configuration
-OPENROUTER_MODEL_NAME = 'google/gemini-2.0-flash-001'
+OPENROUTER_MODEL_NAME = 'meta-llama/llama-3.3-70b-instruct'
 OPENROUTER_API_KEY = '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'
 
 # Real-world PII types for general usage
