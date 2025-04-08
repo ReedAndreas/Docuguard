@@ -1,74 +1,160 @@
-# DocuGuard: PII Detection System
+# DocuGuard - PII Detection System
 
-DocuGuard is a system for detecting and scoring Personally Identifiable Information (PII) in text documents. It uses Large Language Models (LLMs) to identify PII entities, calculates risk scores, and supports evaluation against ground truth data.
+DocuGuard is a system for detecting Personally Identifiable Information (PII) in text documents, calculating risk scores for each entity, and protecting sensitive data.
 
 ## Features
 
-- PII detection using state-of-the-art LLMs (via OpenRouter API)
-- Risk scoring for detected PII entities 
-- Support for multiple PII types (emails, names, phone numbers, etc.)
-- Contextual risk analysis based on surrounding text
-- Evaluation against ground truth data with standard NER metrics
-
-## Architecture
-
-The system is organized into the following modules:
-
-- `config.py`: Configuration settings
-- `api.py`: API interaction with OpenRouter
-- `tokenization.py`: Token processing utilities
-- `entity_processing.py`: Entity extraction and resolution
-- `bio_tagging.py`: Conversion to BIO tagging format
-- `risk_scoring.py`: Risk score calculation
-- `document_processor.py`: Main document processing logic
-- `main.py`: Entry point for the application
+- Detect multiple types of PII (names, emails, phone numbers, addresses, etc.)
+- Calculate risk scores for each detected entity
+- Summarize document risk with profile distribution (Low, Medium, High, Critical)
+- Process both benchmark datasets with ground truth and real-world text
+- Support for both CSV datasets and raw text files
+- Detailed reporting with context for each detected entity
+- Anonymize detected PII using redaction or pseudonymization based on risk scores
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone [repository-url]
-cd docuguard
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd docuguard
+   ```
 
-# Create and activate virtual environment (optional but recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
 
-# Install dependencies
-pip install pandas requests spacy seqeval
-
-# Download spaCy model
-python -m spacy download en_core_web_sm
-```
+3. Make sure you have the necessary API keys for LLM access (see configuration section).
 
 ## Usage
 
-1. Ensure you have a CSV file named `pii_dataset.csv` in the root directory
-2. Run the script:
+### Processing Benchmark Datasets
+
+To process and evaluate benchmark datasets with ground truth:
 
 ```bash
-python run_docuguard.py
+python -m docuguard.main
 ```
+
+This will:
+- Load the `pii_dataset.csv` file
+- Process a sample of documents
+- Calculate risk scores for detected entities
+- Evaluate performance against ground truth labels
+
+### Processing Real-World Text
+
+For real-world text without ground truth labels, use the `real_world.py` module:
+
+#### Process a text file:
+
+```bash
+python -m docuguard.real_world --file path/to/your/file.txt
+```
+
+#### Process text directly:
+
+```bash
+python -m docuguard.real_world --text "Hello, my name is John Smith and my email is john@example.com"
+```
+
+#### Process and anonymize text:
+
+```bash
+# Redaction mode
+python -m docuguard.real_world --file path/to/your/file.txt --anonymize --mode redaction --threshold 0.5
+
+# Pseudonymization mode
+python -m docuguard.real_world --text "My SSN is 123-45-6789" --anonymize --mode pseudonymization --threshold 0.3
+```
+
+### Running Anonymization Tests
+
+The `test_anonymization.py` script provides a simple way to test anonymization features:
+
+```bash
+# Basic redaction test
+python test_anonymization.py
+
+# Pseudonymization test
+python test_anonymization.py --mode pseudonymization --threshold 0.4
+
+# Test with custom text
+python test_anonymization.py --text "My name is John Smith and my email is john@example.com"
+```
+
+### Options
+
+- `--benchmark`: Use benchmark labels instead of real-world labels
+- `--file`: Path to a text file to process
+- `--text`: Direct text input to process
+- `--anonymize`: Enable anonymization of detected PII
+- `--mode`: Anonymization mode (`redaction` or `pseudonymization`)
+- `--threshold`: Risk score threshold for anonymization (0.0-1.0)
+
+## Example Output
+
+```
+Document Risk Summary
+==================================================
+Maximum Risk Score: 0.900 (Critical)
+Total PII Items: 4
+
+Risk Distribution:
+  Critical : 1 |████
+  High    : 1 |████
+  Medium  : 1 |████
+  Low     : 1 |████
+
+--- Detected 4 PII entities ---
+
+1. SSN | Risk: 0.900 (CRITICAL) | Text: '123-45-6789'
+   Context: ...n Francisco, CA 94107. My [123-45-6789] and my credit card num...
+
+2. PHONE_NUMBER | Risk: 0.700 (HIGH) | Text: '(555) 123-4567'
+   Context: ...mail.com or call my mobile at [(555) 123-4567].
+
+I currently live at...
+
+3. EMAIL | Risk: 0.500 (MEDIUM) | Text: 'sarah.johnson@gmail.com'
+   Context: ...puter Science. You can reach me at [sarah.johnson@gmail.com] or call my mobile at...
+
+4. NAME | Risk: 0.300 (LOW) | Text: 'Sarah Johnson'
+   Context: ...Hello! My name is [Sarah Johnson] and I work as a Softw...
+
+--- Anonymized Text ---
+Hello! My name is [NAME REDACTED] and I work as a Software Engineer at TechSolutions Inc.
+
+I graduated from Stanford University in 2015 with a degree in Computer Science. 
+You can reach me at [EMAIL REDACTED] or call my mobile at [PHONE_NUMBER REDACTED].
+
+I currently live at [ADDRESS REDACTED].
+My [SSN REDACTED] and my credit card number is 4111-1111-1111-1111.
+```
+
+## Configuration
+
+Configuration settings are in `docuguard/config.py`:
+
+- `PII_LABELS_TO_DETECT`: Types of PII to detect
+- `USE_BENCHMARK_LABELS`: Toggle between benchmark and real-world labels
+- API settings for LLM integration
 
 ## Dataset Format
 
-The system expects a CSV file with the following columns:
-- `text`: The full text to analyze
-- `tokens`: A string representation of a list of tokens
-- `trailing_whitespace`: A string representation of a list of booleans indicating if the token has trailing whitespace
-- `labels`: (Optional) A string representation of a list of ground truth BIO tags
-
-## Risk Scoring
-
-The risk scoring system considers:
-- Base risk by PII type (e.g., ID numbers are higher risk than names)
-- Contextual risk (presence of risky keywords near the PII)
-- Linkability risk (multiple types of PII in proximity)
+The benchmark dataset CSV should include these columns:
+- `document`: Unique document ID
+- `text`: Full document text
+- `tokens`: Tokenized text (list as string)
+- `trailing_whitespace`: Boolean indicators for trailing whitespace (list as string)
+- `labels`: Optional ground truth BIO labels (list as string)
+- Additional columns for extracted PII entities
 
 ## License
 
-[Add license information here]
+[MIT License](LICENSE)
 
-## Acknowledgments
+## Contributing
 
-- OpenRouter for providing API access to large language models 
+Contributions are welcome! Please feel free to submit a Pull Request. 
