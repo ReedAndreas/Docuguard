@@ -1,7 +1,7 @@
 """
 Configuration settings for the DocuGuard PII detection system.
 """
-
+import os
 # OpenRouter API configuration
 OPENROUTER_MODEL_NAME = 'google/gemini-2.0-flash-001'
 OPENROUTER_API_KEY = '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'
@@ -41,7 +41,7 @@ PII_TYPE_MAPPING = {
 }
 
 # Set the active PII types based on mode (default to real-world)
-USE_BENCHMARK_LABELS = True  # Default to real-world labels
+USE_BENCHMARK_LABELS = os.getenv('USE_BENCHMARK_LABELS', 'True') == 'True'
 PII_LABELS_TO_DETECT = BENCHMARK_PII_TYPES if USE_BENCHMARK_LABELS else REAL_WORLD_PII_TYPES
 
 def map_pii_type(pii_type, to_benchmark=False):
