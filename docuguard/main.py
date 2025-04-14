@@ -27,7 +27,7 @@ def load_checkpoint(filename):
             return pickle.load(f)
     return None
 
-def print_intermediate_report(true_labels, pred_labels, current_index):
+def print_intermediate_report(true_labels, pred_labels, current_index, start_index=0):
     """Prints the classification report based on current data."""
     if not true_labels or not pred_labels or len(true_labels) != len(pred_labels):
         print("Skipping intermediate report: Data unavailable or mismatched.")
@@ -38,7 +38,17 @@ def print_intermediate_report(true_labels, pred_labels, current_index):
     if valid_indices:
         filtered_true = [true_labels[i] for i in valid_indices]
         filtered_pred = [pred_labels[i] for i in valid_indices]
-        print(f"=== Intermediate Seqeval Report (up to index {current_index}) on {len(filtered_true)} valid samples ===")
+        
+        total_docs_processed = current_index - start_index + 1
+        total_docs_evaluated = len(true_labels)
+        docs_skipped = total_docs_processed - total_docs_evaluated
+        
+        print(f"=== Intermediate Seqeval Report (up to index {current_index}) ===")
+        print(f"Documents processed: {total_docs_processed}")
+        print(f"Documents evaluated: {total_docs_evaluated}")
+        print(f"Documents skipped (due to LLM errors): {docs_skipped}")
+        print(f"Valid samples in evaluation: {len(filtered_true)}")
+        
         try:
             print(classification_report(filtered_true, filtered_pred, digits=3))
         except Exception as eval_e:
@@ -97,10 +107,15 @@ def main():
             full_text, tokens_str, trailing_ws_str, labels_str, use_benchmark_labels=use_benchmark_labels
         )
 
-        # Store results for overall evaluation
-        all_scored_entities.append(scored_entities)
-        if pred_labels is not None: all_pred_labels.append(pred_labels)
-        if true_labels is not None: all_true_labels.append(true_labels)
+        # Store results for overall evaluation only if we have valid predictions
+        # If LLM failed to return valid entities, pred_labels will be None
+        if pred_labels is not None:
+            all_scored_entities.append(scored_entities)
+            all_pred_labels.append(pred_labels)
+            if true_labels is not None: all_true_labels.append(true_labels)
+            print(f"Document {idx} processed and included in evaluation.")
+        else:
+            print(f"Document {idx} processed but excluded from evaluation due to invalid LLM response.")
         
         # --- Checkpoint Saving and Intermediate Report ---
         # Save if the interval is reached OR it's the last item
@@ -113,12 +128,17 @@ def main():
             }
             save_checkpoint(checkpoint_data, CHECKPOINT_FILE)
             # Print intermediate report
-            print_intermediate_report(all_true_labels, all_pred_labels, idx)
+            print_intermediate_report(all_true_labels, all_pred_labels, idx, start_index)
 
     # Final results summary (optional, as intermediate reports are printed)
     print("--- Final Processing Summary ---")
-    print(f"Total documents processed in this run: {len(df) - start_index}")
-    print(f"Total accumulated results: {len(all_scored_entities)}")
+    total_docs_processed = len(df) - start_index
+    total_docs_evaluated = len(all_scored_entities)
+    docs_skipped = total_docs_processed - total_docs_evaluated
+    print(f"Total documents processed in this run: {total_docs_processed}")
+    print(f"Documents evaluated: {total_docs_evaluated}")
+    print(f"Documents skipped (due to LLM errors): {docs_skipped}")
+    
 
     # Print overall evaluation report (only if ground truth was available)
     if all_true_labels and all_pred_labels and len(all_true_labels) == len(all_pred_labels):
@@ -128,7 +148,8 @@ def main():
         if valid_indices:
             filtered_true = [all_true_labels[i] for i in valid_indices]
             filtered_pred = [all_pred_labels[i] for i in valid_indices]
-            print(f"=== Final Seqeval Classification Report on {len(filtered_true)} total valid samples ===")
+            print(f"=== Final Seqeval Classification Report ===")
+            print(f"Valid samples in evaluation: {len(filtered_true)}")
             try:
                 print(classification_report(filtered_true, filtered_pred, digits=3))
             except Exception as eval_e:

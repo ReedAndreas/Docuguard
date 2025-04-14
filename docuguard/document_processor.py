@@ -59,7 +59,7 @@ def process_document_with_scoring(full_text, tokens_str, trailing_whitespace_str
         tuple: (entities_with_scores, predicted_bio_labels, ground_truth_labels)
     """
     entities_with_scores = []
-    predicted_bio_labels = []
+    predicted_bio_labels = None
     ground_truth_labels = None
     
     try:
@@ -77,8 +77,9 @@ def process_document_with_scoring(full_text, tokens_str, trailing_whitespace_str
         print("Calling LLM for PII identification...")
         llm_identified_entities = call_openrouter_llm(full_text, PII_LABELS_TO_DETECT)
         if not llm_identified_entities:
-             print("LLM did not return valid entities.")
-             return [], ['O'] * len(tokens), ground_truth_labels  # Return empty scores, 'O' labels
+             print("LLM did not return valid entities. Skipping this document in evaluation.")
+             # Return empty list for entities and None for predicted labels to exclude from evaluation
+             return [], None, ground_truth_labels
 
         print(f"LLM identified {len(llm_identified_entities)} potential entities.")
         
@@ -113,10 +114,8 @@ def process_document_with_scoring(full_text, tokens_str, trailing_whitespace_str
         print(f"An unexpected error occurred during document processing: {e}")
         import traceback
         traceback.print_exc()
-        num_tokens = 0
-        try: num_tokens = len(ast.literal_eval(tokens_str))
-        except: pass
-        return [], ['O'] * num_tokens if num_tokens else [], None
+        # Return None for predicted labels to exclude this document from evaluation
+        return [], None, None
 
 
 def process_document(full_text, tokens_str, trailing_whitespace_str, ground_truth_labels_str=None, use_benchmark_labels=USE_BENCHMARK_LABELS):
@@ -150,9 +149,9 @@ def process_document(full_text, tokens_str, trailing_whitespace_str, ground_trut
         print("Calling LLM for PII identification...")
         llm_identified_entities = call_openrouter_llm(full_text, PII_LABELS_TO_DETECT)
         if not llm_identified_entities:
-             print("LLM did not return valid entities.")
-             # Return 'O' for all tokens if LLM fails
-             return ['O'] * len(tokens), ground_truth_labels 
+             print("LLM did not return valid entities. Skipping this document in evaluation.")
+             # Return None instead of 'O' labels to exclude this document from evaluation
+             return None, ground_truth_labels 
 
         print(f"LLM identified {len(llm_identified_entities)} potential entities.")
         # print raw llm output
@@ -181,10 +180,5 @@ def process_document(full_text, tokens_str, trailing_whitespace_str, ground_trut
         print(f"An unexpected error occurred during document processing: {e}")
         import traceback
         traceback.print_exc()
-        # Decide how to handle this, e.g., skip document or return empty predictions
-        if tokens_str:  # If we know the number of tokens, return 'O's
-            try:
-                 num_tokens = len(ast.literal_eval(tokens_str))
-                 return ['O'] * num_tokens, None
-            except: pass  # Ignore further errors
-        return [], None  # Default empty return on error
+        # Return None instead of empty or 'O' labels to exclude this document
+        return None, None

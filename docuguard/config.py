@@ -3,8 +3,8 @@ Configuration settings for the DocuGuard PII detection system.
 """
 import os
 # OpenRouter API configuration
-OPENROUTER_MODEL_NAME = 'google/gemini-2.0-flash-001'
-OPENROUTER_API_KEY = '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'
+OPENROUTER_MODEL_NAME = os.getenv('OPENROUTER_MODEL_NAME')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
 # Real-world PII types for general usage
 REAL_WORLD_PII_TYPES = [
