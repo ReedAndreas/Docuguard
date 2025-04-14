@@ -64,7 +64,6 @@ local_settings.py
 *.ini
 *.cfg
 *.conf
-*.txt
 *.md
 *.rst
 *.html

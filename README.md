@@ -43,6 +43,31 @@ This will:
 - Calculate risk scores for detected entities
 - Evaluate performance against ground truth labels
 
+### Running the DocuGuard Web Interface
+
+The DocuGuard web interface is built with Django and allows for interactive PII detection and management.
+
+1. Ensure all dependencies are installed (see Installation section and requirements.txt).
+2. Navigate to the `docuguard_web` directory:
+   ```bash
+   cd docuguard_web
+   ```
+3. Apply database migrations (if needed):
+   ```bash
+   python manage.py migrate
+   ```
+4. Create a superuser for admin access (optional, for Django admin):
+   ```bash
+   python manage.py createsuperuser
+   ```
+5. Run the development server:
+   ```bash
+   python manage.py runserver
+   ```
+   This will start the server, typically at `http://127.0.0.1:8000/`. Access it in your web browser to use the interface.
+
+6. To stop the server, use Ctrl+C in the terminal.
+
 ### Processing Real-World Text
 
 For real-world text without ground truth labels, use the `real_world.py` module:
@@ -135,10 +160,25 @@ My [SSN REDACTED] and my credit card number is 4111-1111-1111-1111.
 
 ## Configuration
 
-Configuration settings are in `docuguard/config.py`:
+### Environment Variables (.env File)
+
+To manage sensitive configuration like API keys, create a `.env` file in the root of the project. This file is used to store environment-specific settings that are loaded automatically when running the script.
+
+1. In the project root, create a file named `.env`.
+2. Add the following variables to it (replace placeholders with your actual values):
+
+```
+USE_BENCHMARK_LABELS=True  # Set to False for real-world labels
+OPENROUTER_MODEL_NAME=google/gemini-2.0-flash-001
+OPENROUTER_API_KEY=your_api_key_here
+```
+
+3. For the `OPENROUTER_API_KEY`, replace `your_api_key_here` with your actual key. If you need access to an OpenRouter API key, it was provided in the project description when uploaded to Brightspace. Please refer to that link for details, and do not share it publicly.
+
+Configuration settings are also defined in `docuguard/config.py`:
 
 - `PII_LABELS_TO_DETECT`: Types of PII to detect
-- `USE_BENCHMARK_LABELS`: Toggle between benchmark and real-world labels
+- `USE_BENCHMARK_LABELS`: Toggle between benchmark and real-world labels (overridden by .env if set)
 - API settings for LLM integration
 
 ## Dataset Format
