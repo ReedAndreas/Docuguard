@@ -1,0 +1,10 @@
+pandas
+seqeval
+spacy
+nltk
+PyMuPDF
+openrouter-api-client
+python-dotenv
+# For spaCy model:
+# python -m spacy download en_core_web_sm 
+Django==4.2  # Required for the DocuGuard web interface

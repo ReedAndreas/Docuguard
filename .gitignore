@@ -216,7 +216,6 @@ local_settings.py
 *.ini
 *.cfg
 *.conf
-*.txt
 *.md
 *.rst
 *.html
@@ -248,12 +247,6 @@ local_settings.py
 /secrets.ini
 /secrets.cfg
 /secrets.conf
-/secrets.txt
-/secrets.md
-/secrets.rst
-/secrets.html
-/secrets.css
-/secrets.js
 /secrets.map
 /secrets.sass
 /secrets.scss
