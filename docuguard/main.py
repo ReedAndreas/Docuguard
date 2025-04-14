@@ -1,6 +1,11 @@
 """
 Main entry point for the DocuGuard PII detection system.
 """
+from dotenv import load_dotenv
+
+# Load environment variables from .env file *before* other imports
+load_dotenv()
+
 import pandas as pd
 import os
 import pickle
@@ -29,24 +34,36 @@ def load_checkpoint(filename):
 
 def print_intermediate_report(true_labels, pred_labels, current_index, start_index=0):
     """Prints the classification report based on current data."""
-    if not true_labels or not pred_labels or len(true_labels) != len(pred_labels):
-        print("Skipping intermediate report: Data unavailable or mismatched.")
+    # Ensure data exists for evaluation
+    if not true_labels or not pred_labels:
+        print(f"=== Intermediate Report (up to index {current_index}) ===")
+        total_docs_processed_overall = current_index + 1
+        print(f"Total documents processed overall: {total_docs_processed_overall}")
+        print("No evaluated documents yet.")
+        return
+        
+    if len(true_labels) != len(pred_labels):
+        print(f"Skipping intermediate report (up to index {current_index}): Label list length mismatch.")
         return
 
+    # Calculate overall statistics
+    total_docs_processed_overall = current_index + 1
+    total_docs_evaluated_overall = len(true_labels) # or len(pred_labels)
+    total_docs_skipped_overall = total_docs_processed_overall - total_docs_evaluated_overall
+
+    print(f"=== Intermediate Seqeval Report (up to index {current_index}) ===")
+    print(f"Total documents processed overall: {total_docs_processed_overall}")
+    print(f"Total documents evaluated overall: {total_docs_evaluated_overall}")
+    print(f"Total documents skipped (due to errors): {total_docs_skipped_overall}")
+    
+    # Filter for valid samples for seqeval report
     valid_indices = [i for i, (true, pred) in enumerate(zip(true_labels, pred_labels))
                      if len(true) == len(pred) and len(true) > 0]
+    
     if valid_indices:
         filtered_true = [true_labels[i] for i in valid_indices]
         filtered_pred = [pred_labels[i] for i in valid_indices]
         
-        total_docs_processed = current_index - start_index + 1
-        total_docs_evaluated = len(true_labels)
-        docs_skipped = total_docs_processed - total_docs_evaluated
-        
-        print(f"=== Intermediate Seqeval Report (up to index {current_index}) ===")
-        print(f"Documents processed: {total_docs_processed}")
-        print(f"Documents evaluated: {total_docs_evaluated}")
-        print(f"Documents skipped (due to LLM errors): {docs_skipped}")
         print(f"Valid samples in evaluation: {len(filtered_true)}")
         
         try:
@@ -54,7 +71,7 @@ def print_intermediate_report(true_labels, pred_labels, current_index, start_ind
         except Exception as eval_e:
             print(f"Could not generate intermediate seqeval report: {eval_e}")
     else:
-        print(f"No valid samples found for intermediate seqeval report (up to index {current_index}).")
+        print(f"No valid samples found for seqeval report calculation (up to index {current_index}).")
 
 def main():
     """
@@ -131,13 +148,14 @@ def main():
             print_intermediate_report(all_true_labels, all_pred_labels, idx, start_index)
 
     # Final results summary (optional, as intermediate reports are printed)
-    print("--- Final Processing Summary ---")
-    total_docs_processed = len(df) - start_index
-    total_docs_evaluated = len(all_scored_entities)
-    docs_skipped = total_docs_processed - total_docs_evaluated
-    print(f"Total documents processed in this run: {total_docs_processed}")
-    print(f"Documents evaluated: {total_docs_evaluated}")
-    print(f"Documents skipped (due to LLM errors): {docs_skipped}")
+    print("\n--- Final Processing Summary ---")
+    total_docs_in_df = len(df)
+    total_docs_evaluated = len(all_true_labels) # Assuming only successful runs append here
+    total_docs_skipped = total_docs_in_df - total_docs_evaluated
+    
+    print(f"Total documents in dataset: {total_docs_in_df}")
+    print(f"Total documents evaluated: {total_docs_evaluated}")
+    print(f"Total documents skipped (due to errors): {total_docs_skipped}")
     
 
     # Print overall evaluation report (only if ground truth was available)
@@ -148,16 +166,19 @@ def main():
         if valid_indices:
             filtered_true = [all_true_labels[i] for i in valid_indices]
             filtered_pred = [all_pred_labels[i] for i in valid_indices]
-            print(f"=== Final Seqeval Classification Report ===")
+            print(f"\n=== Final Seqeval Classification Report ===")
+            print(f"Based on {total_docs_evaluated} evaluated documents:") # Clarify the base
             print(f"Valid samples in evaluation: {len(filtered_true)}")
             try:
                 print(classification_report(filtered_true, filtered_pred, digits=3))
             except Exception as eval_e:
                 print(f"Could not generate final seqeval report: {eval_e}")
         else:
-            print("No valid samples found for final seqeval report.")
+            print("\nNo valid samples found for final seqeval report.")
+    elif total_docs_evaluated > 0:
+        print("\nCould not generate final seqeval report (likely label list length mismatch). Check skipped documents.")
     else:
-        print("Could not generate final seqeval report (missing ground truth or prediction mismatch).")
+        print("\nCould not generate final seqeval report (no documents were successfully evaluated). Check logs for errors.")
 
 if __name__ == "__main__":
     main()
