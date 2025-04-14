@@ -187,7 +187,3 @@ The benchmark dataset CSV should include these columns:
 ## License
 
 [MIT License](LICENSE)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. 
