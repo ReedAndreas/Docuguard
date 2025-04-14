@@ -31,7 +31,7 @@ DocuGuard is a system for detecting Personally Identifiable Information (PII) in
 
 ### Processing Benchmark Datasets
 
-To process and evaluate benchmark datasets with ground truth:
+To process and evaluate benchmark datasets with ground truth, first ensure in the `.env` file that `USE_BENCHMARK_LABELS` is set to `True`. Then run the following command:
 
 ```bash
 python -m docuguard.main
@@ -42,31 +42,6 @@ This will:
 - Process a sample of documents
 - Calculate risk scores for detected entities
 - Evaluate performance against ground truth labels
-
-### Running the DocuGuard Web Interface
-
-The DocuGuard web interface is built with Django and allows for interactive PII detection and management.
-
-1. Ensure all dependencies are installed (see Installation section and requirements.txt).
-2. Navigate to the `docuguard_web` directory:
-   ```bash
-   cd docuguard_web
-   ```
-3. Apply database migrations (if needed):
-   ```bash
-   python manage.py migrate
-   ```
-4. Create a superuser for admin access (optional, for Django admin):
-   ```bash
-   python manage.py createsuperuser
-   ```
-5. Run the development server:
-   ```bash
-   python manage.py runserver
-   ```
-   This will start the server, typically at `http://127.0.0.1:8000/`. Access it in your web browser to use the interface.
-
-6. To stop the server, use Ctrl+C in the terminal.
 
 ### Processing Real-World Text
 
@@ -108,6 +83,24 @@ python test_anonymization.py --mode pseudonymization --threshold 0.4
 # Test with custom text
 python test_anonymization.py --text "My name is John Smith and my email is john@example.com"
 ```
+
+### Running the DocuGuard Web Interface
+
+The DocuGuard web interface is built with Django and allows for interactive PII detection and management.
+
+1. Ensure all dependencies are installed (see Installation section and requirements.txt).
+2. Navigate to the `docuguard_web` directory:
+   ```bash
+   cd docuguard_web
+   ```
+
+3. Run the development server:
+   ```bash
+   python manage.py runserver
+   ```
+   This will start the server, typically at `http://127.0.0.1:8000/`. Access it in your web browser to use the interface.
+
+4. To stop the server, use Ctrl+C in the terminal.
 
 ### Options
 
