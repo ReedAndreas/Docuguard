@@ -318,3 +318,6 @@ local_settings.py
 /defaults
 /default
 /local
+media/
+test_samples/
+checkpoints/

@@ -30,7 +30,7 @@ class TextInputForm(forms.Form):
         required=False,
         initial=False,
         label="Anonymize detected PII",
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'anonymize_toggle'})
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_anonymize'})
     )
     
     ANONYMIZATION_CHOICES = [
@@ -42,7 +42,7 @@ class TextInputForm(forms.Form):
         choices=ANONYMIZATION_CHOICES,
         initial='redaction',
         label="Anonymization Method",
-        widget=forms.Select(attrs={'class': 'form-select', 'id': 'anonymization_mode'}),
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_anonymization_mode'}),
         required=False
     )
     
@@ -53,11 +53,10 @@ class TextInputForm(forms.Form):
         label="Risk Score Threshold",
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'id': 'threshold_value',
+            'id': 'id_threshold',
             'step': '0.1',
             'min': '0',
-            'max': '1',
-            'type': 'hidden'  # Hide the actual input, we'll use the slider
+            'max': '1'
         }),
         required=False
     )

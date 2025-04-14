@@ -11,6 +11,21 @@ from docuguard.risk_summary import summarize_risk_profile, format_risk_summary, 
 from docuguard.anonymization import anonymize_text, REDACTION_MODE, PSEUDONYMIZATION_MODE
 
 from .forms import TextInputForm
+from django.http import FileResponse, Http404
+import mimetypes
+
+def download_pdf(request, filename):
+    """View for downloading a PDF file with proper headers."""
+    media_root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'media')
+    filepath = os.path.join(media_root, filename)
+    
+    if not os.path.exists(filepath):
+        raise Http404("File not found")
+    
+    # Set content-disposition header to force download
+    response = FileResponse(open(filepath, 'rb'), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 def home_view(request):
     """Home view with form for text or PDF input and results display."""
@@ -25,12 +40,15 @@ def home_view(request):
             text = form.cleaned_data.get('text')
             pdf_file = form.cleaned_data.get('pdf_file')
             should_anonymize = form.cleaned_data.get('anonymize', False)
-            anonymization_mode = form.cleaned_data.get('anonymization_mode', REDACTION_MODE)
             input_mode = form.cleaned_data.get('input_mode', 'text')
-
-            # Force redaction mode if PDF input
+            
+            # Set defaults and handle mode-specific options
             if input_mode == 'pdf':
+                # For PDF, always use redaction mode regardless of what was selected
                 anonymization_mode = REDACTION_MODE
+            else:
+                # For text, use the selected mode
+                anonymization_mode = form.cleaned_data.get('anonymization_mode', REDACTION_MODE)
             
             # Set a default threshold if not provided
             threshold = form.cleaned_data.get('threshold')
@@ -40,6 +58,7 @@ def home_view(request):
             document = None
             scored_entities = []
             pred_labels = []
+            redacted_pdf_path = None
 
             if pdf_file:
                 import shutil
@@ -52,8 +71,6 @@ def home_view(request):
                     for chunk in pdf_file.chunks():
                         tmp.write(chunk)
                     temp_pdf_path = tmp.name
-
-                redacted_pdf_path = None
 
                 try:
                     # Process the PDF file
@@ -115,11 +132,9 @@ def home_view(request):
             anonymized_text = None
             anonymization_stats = None
             if should_anonymize and scored_entities:
-                # For PDF input, do not generate anonymized text, only redacted PDF
-                if input_mode == 'pdf':
-                    anonymized_text = None
-                    anonymization_stats = None
-                else:
+                # For PDF input, we only create redacted PDF (handled above)
+                # For text input, we generate anonymized text
+                if input_mode == 'text':
                     anonymized_text, anonymization_stats = anonymize_text(
                         text,
                         scored_entities,
@@ -127,6 +142,7 @@ def home_view(request):
                         mode=anonymization_mode
                     )
             
+            # Prepare the results dictionary
             results = {
                 'entities': scored_entities,
                 'risk_summary': risk_summary,
@@ -135,7 +151,8 @@ def home_view(request):
                 'original_text': text,
                 'anonymization_mode': anonymization_mode,
                 'threshold': threshold,
-                'redacted_pdf_url': None
+                'redacted_pdf_url': None,
+                'input_mode': input_mode,  # Add this to help template know which mode was used
             }
 
             # If a redacted PDF was generated, add its URL
@@ -144,7 +161,7 @@ def home_view(request):
                 redacted_pdf_abs = os.path.abspath(redacted_pdf_path)
                 if redacted_pdf_abs.startswith(media_root_abs):
                     rel_path = redacted_pdf_abs[len(media_root_abs):].lstrip('/').lstrip('\\')
-                    results['redacted_pdf_url'] = f"/media/{rel_path}"
+                    results['redacted_pdf_url'] = f"/download/{os.path.basename(rel_path)}"
                 else:
                     results['redacted_pdf_url'] = None
     else:
